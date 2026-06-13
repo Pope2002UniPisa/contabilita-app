@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<p:FatturaElettronica versione="FPR12" xmlns:p="http://ivaservizi.agenziaentrate.gov.it/docs/xsd/fatture/v1.2">
+  <FatturaElettronicaHeader>
+    <DatiTrasmissione>
+      <IdTrasmittente><IdPaese>IT</IdPaese><IdCodice>07766554433</IdCodice></IdTrasmittente>
+      <ProgressivoInvio>00005</ProgressivoInvio>
+      <FormatoTrasmissione>FPR12</FormatoTrasmissione>
+      <CodiceDestinatario>ABCDEFG</CodiceDestinatario>
+    </DatiTrasmissione>
+    <CedentePrestatore>
+      <DatiAnagrafici>
+        <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>07766554433</IdCodice></IdFiscaleIVA>
+        <Anagrafica><Denominazione>RISTORANTE DA MARIO</Denominazione></Anagrafica>
+        <RegimeFiscale>RF01</RegimeFiscale>
+      </DatiAnagrafici>
+      <Sede><Indirizzo>Via Esempio 1</Indirizzo><CAP>56100</CAP><Comune>Pisa</Comune><Provincia>PI</Provincia><Nazione>IT</Nazione></Sede>
+    </CedentePrestatore>
+    <CessionarioCommittente>
+      <DatiAnagrafici>
+        <IdFiscaleIVA><IdPaese>IT</IdPaese><IdCodice>01234567890</IdCodice></IdFiscaleIVA>
+        <Anagrafica><Denominazione>LA NOSTRA AZIENDA SRL</Denominazione></Anagrafica>
+      </DatiAnagrafici>
+      <Sede><Indirizzo>Via Aziendale 10</Indirizzo><CAP>56100</CAP><Comune>Pisa</Comune><Provincia>PI</Provincia><Nazione>IT</Nazione></Sede>
+    </CessionarioCommittente>
+  </FatturaElettronicaHeader>
+  <FatturaElettronicaBody>
+    <DatiGenerali>
+      <DatiGeneraliDocumento>
+        <TipoDocumento>TD01</TipoDocumento>
+        <Divisa>EUR</Divisa>
+        <Data>2026-02-10</Data>
+        <Numero>55</Numero>
+        <ImportoTotaleDocumento>96.80</ImportoTotaleDocumento>
+      </DatiGeneraliDocumento>
+    </DatiGenerali>
+    <DatiBeniServizi>
+      <DettaglioLinee>
+        <NumeroLinea>1</NumeroLinea>
+        <Descrizione>Pranzo di lavoro con cliente</Descrizione>
+        <Quantita>1.00</Quantita>
+        <PrezzoUnitario>88.00</PrezzoUnitario>
+        <PrezzoTotale>88.00</PrezzoTotale>
+        <AliquotaIVA>10.00</AliquotaIVA>
+        
+      </DettaglioLinee>
+      <DatiRiepilogo>
+        <AliquotaIVA>10.00</AliquotaIVA>
+        
+        <ImponibileImporto>88.00</ImponibileImporto>
+        <Imposta>8.80</Imposta>
+      </DatiRiepilogo>
+    </DatiBeniServizi>
+  </FatturaElettronicaBody>
+</p:FatturaElettronica>
