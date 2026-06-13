@@ -61,6 +61,20 @@ def scrittura_reverse_charge(fattura, conto_costo):
     return righe
 
 
+def scrittura_incasso_fattura_attiva(registrazione):
+    """
+    Quando il cliente paga: Banca c/c a Crediti vs clienti.
+    registrazione = elemento del giornale di tipo 'attiva'
+    """
+    totale = sum(r["dare"] for r in registrazione["righe"] if r["conto"] == "15")
+    return [
+        {"conto": "20", "descr": "Banca c/c",
+         "dare": totale, "avere": 0.0},
+        {"conto": "15", "descr": f"Crediti c/ {registrazione['fornitore']}",
+         "dare": 0.0,   "avere": totale},
+    ]
+
+
 def verifica_quadratura(righe):
     """Controlla che Dare == Avere (regola fondamentale partita doppia)."""
     tot_dare = round(sum(r["dare"] for r in righe), 2)
