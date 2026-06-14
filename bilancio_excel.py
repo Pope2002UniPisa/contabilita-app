@@ -190,6 +190,11 @@ def leggi_foglio(nome):
                 bold = bool(cell.font.bold)
             except Exception:
                 bold = False
-            celle.append({"value": val, "bg": bg, "bold": bold})
+            indent = 0
+            try:
+                indent = int(cell.alignment.indent or 0)
+            except Exception:
+                pass
+            celle.append({"value": val, "bg": bg, "bold": bold, "indent": indent})
         rows.append(celle)
     return rows

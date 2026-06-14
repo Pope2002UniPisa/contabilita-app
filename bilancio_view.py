@@ -1,6 +1,6 @@
 """
-Viewer Excel dentro l'app — usa ttk.Treeview (affidabile nel bundle .app).
-Si aggiorna automaticamente ogni volta che il giornale cambia.
+Viewer Excel dentro l'app — ttk.Treeview con indentazione, senza righe vuote,
+colonne compatte e layout che riempie tutta la finestra.
 """
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -10,33 +10,28 @@ import datetime
 
 import bilancio_excel as bx
 
-_PALETTE = {
-    "FFFFFF00": "#FFF0A0",
-    "FFD9D9D9": "#D9D9D9",
-    "FFF2F2F2": "#EEEEEE",
-    "FFA9D08E": "#A9D08E",
-    "FF92D050": "#C8E6A0",
-    "FFBDD7EE": "#BDD7EE",
+# Anni presenti come intestazioni nel foglio Excel (da saltare come righe dati)
+_ANNI_SET = {2022, 2023, 2024, 2025, 2026, 2027}
+
+_PALETTE_TAG = {
+    "FFFFFF00": "yellow",
+    "FFD9D9D9": "gray_dark",
+    "FFF2F2F2": "gray_light",
+    "FFA9D08E": "green",
+    "FF92D050": "green2",
+    "FFBDD7EE": "blue_light",
+    "FFFFE699": "yellow",   # variante giallo
+    "FFFFFFCC": "yellow",
 }
 
-def _tag(bg_hex8):
-    if not bg_hex8:
+
+def _cell_tag(hex8):
+    if not hex8:
         return ""
-    k = bg_hex8.upper().lstrip("#")
-    if len(k) == 8:
-        k = "FF" + k[2:]
-    mapped = _PALETTE.get(k, "")
-    if not mapped:
-        return ""
-    lookup = {v: t for t, v in {
-        "yellow":     "#FFF0A0",
-        "gray_dark":  "#D9D9D9",
-        "gray_light": "#EEEEEE",
-        "green":      "#A9D08E",
-        "green2":     "#C8E6A0",
-        "blue_light": "#BDD7EE",
-    }.items()}
-    return lookup.get(mapped, "")
+    k = hex8.upper().lstrip("#")
+    if len(k) == 6:
+        k = "FF" + k
+    return _PALETTE_TAG.get(k, "")
 
 
 def _fmt(val):
@@ -54,9 +49,18 @@ def _fmt(val):
     return str(val)
 
 
+def _is_year_header_row(row):
+    """True se la riga contiene gli anni come intestazioni (riga 2 del foglio)."""
+    for cell in row[1:7]:
+        v = cell.get("value")
+        if isinstance(v, int) and v in _ANNI_SET:
+            return True
+    return False
+
+
 class SheetView(tk.Frame):
-    _COLS = ("voce", "2022", "2023", "2024", "2025", "2026", "2027")
-    _WIDTHS = (370, 78, 78, 78, 78, 78, 78)
+    _LABEL_W = 430
+    _YEAR_W  = 78
 
     def __init__(self, parent, nome_foglio):
         super().__init__(parent)
@@ -64,37 +68,77 @@ class SheetView(tk.Frame):
         self._build()
 
     def _build(self):
-        tree = ttk.Treeview(self, columns=self._COLS, show="headings",
-                            selectmode="none")
-        for col, w in zip(self._COLS, self._WIDTHS):
-            lbl = "" if col == "voce" else col
-            anch = "w" if col == "voce" else "e"
-            tree.heading(col, text=lbl)
-            tree.column(col,  width=w, anchor=anch, stretch=(col == "voce"))
+        rows_raw = bx.leggi_foglio(self._nome)
+        if not rows_raw:
+            ttk.Label(self, text="Foglio non disponibile", padding=20).pack()
+            return
 
-        # tag colori
-        tree.tag_configure("yellow",     background="#FFF0A0", font=("Helvetica", 9, "bold"))
-        tree.tag_configure("gray_dark",  background="#D9D9D9", font=("Helvetica", 9, "bold"))
-        tree.tag_configure("gray_light", background="#EEEEEE")
-        tree.tag_configure("green",      background="#A9D08E", font=("Helvetica", 9, "bold"))
-        tree.tag_configure("green2",     background="#C8E6A0")
-        tree.tag_configure("blue_light", background="#BDD7EE")
+        cols = ("voce", "2022", "2023", "2024", "2025", "2026", "2027")
+        tree = ttk.Treeview(self, columns=cols, show="headings", selectmode="none")
 
-        rows = bx.leggi_foglio(self._nome)
-        for row in rows:
-            vals = [_fmt(row[ci]["value"] if ci < len(row) else None)
-                    for ci in range(7)]
-            # tag: prendi dal primo bg della riga
+        # Intestazioni colonne
+        tree.heading("voce", text="Voce di bilancio", anchor="w")
+        tree.column("voce", width=self._LABEL_W, minwidth=200,
+                    anchor="w", stretch=True)
+        for yr in ("2022", "2023", "2024", "2025", "2026", "2027"):
+            tree.heading(yr, text=yr, anchor="e")
+            tree.column(yr, width=self._YEAR_W, minwidth=60,
+                        anchor="e", stretch=False)
+
+        # Tag colori + font bold per sezioni
+        f_normal = ("Helvetica", 9)
+        f_bold   = ("Helvetica", 9, "bold")
+        tree.tag_configure("yellow",     background="#FFF0A0", font=f_bold)
+        tree.tag_configure("gray_dark",  background="#D9D9D9", font=f_bold)
+        tree.tag_configure("gray_light", background="#EEEEEE", font=f_normal)
+        tree.tag_configure("green",      background="#A9D08E", font=f_bold)
+        tree.tag_configure("green2",     background="#C8E6A0", font=f_normal)
+        tree.tag_configure("blue_light", background="#BDD7EE", font=f_normal)
+        tree.tag_configure("",          font=f_normal)
+
+        for row in rows_raw:
+            # Salta righe intestazione anni (row 2 di ogni foglio)
+            if _is_year_header_row(row):
+                continue
+
+            col_a = row[0] if row else {}
+            label_val = col_a.get("value")
+
+            # Salta righe completamente vuote (nessun testo, nessun valore)
+            has_values = any(
+                row[i].get("value") not in (None, "", 0)
+                for i in range(1, min(7, len(row)))
+            )
+            if label_val is None and not has_values:
+                continue
+
+            # Applica indentazione Excel
+            indent = col_a.get("indent", 0)
+            prefix = "    " * indent if indent else ""
+            label = prefix + (str(label_val) if label_val is not None else "")
+
+            # Valori anni
+            yr_vals = [
+                _fmt(row[i].get("value") if i < len(row) else None)
+                for i in range(1, 7)
+            ]
+
+            vals = [label] + yr_vals
+
+            # Tag colore dalla prima cella con bg
             t = ""
             for cell in row:
-                t = _tag(cell.get("bg", ""))
+                t = _cell_tag(cell.get("bg", ""))
                 if t:
                     break
-            tree.insert("", "end", values=vals, tags=(t,) if t else ())
+
+            tree.insert("", "end", values=vals, tags=(t,) if t else ("",))
 
         vsb = ttk.Scrollbar(self, orient="vertical",   command=tree.yview)
         hsb = ttk.Scrollbar(self, orient="horizontal", command=tree.xview)
         tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        tree.bind("<MouseWheel>", lambda e: tree.yview_scroll(
+            -1 if e.delta > 0 else 1, "units"))
         vsb.pack(side="right",  fill="y")
         hsb.pack(side="bottom", fill="x")
         tree.pack(fill="both", expand=True)
@@ -154,7 +198,7 @@ class BilancioView(ttk.Frame):
 
     def _aggiorna(self):
         if not bx.excel_disponibile():
-            messagebox.showwarning("Attenzione", "Template Excel non trovato. Riavvia l'app.")
+            messagebox.showwarning("Attenzione", "Template Excel non trovato.")
             return
         try:
             bx.aggiorna_bilancio(self._get_saldi(), self._anno_var.get())
