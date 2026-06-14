@@ -77,6 +77,17 @@ _CE_TOTALI = [
 FOGLI_DA_MOSTRARE = ["STATO PATRIMONIALE", "CONTO ECONOMICO", "INDICI",
                      "RENDICONTO FINANZIARIO", "VALUTAZIONE INVESTIMENTI", "WACC", "STAFF DISTRIBUTION"]
 
+# Cache in-memory: evita di rileggere il file Excel ad ogni cambio tab
+_cache_fogli: dict = {}
+
+def leggi_foglio_cached(nome: str) -> list:
+    if nome not in _cache_fogli:
+        _cache_fogli[nome] = leggi_foglio(nome)
+    return _cache_fogli[nome]
+
+def invalida_cache():
+    _cache_fogli.clear()
+
 
 def _working_path():
     return os.path.join(config.get_data_dir(), _WORKING_NAME)
@@ -157,6 +168,7 @@ def aggiorna_bilancio(saldi, anno):
         _calcola_totali(wb, col, "CONTO ECONOMICO", _CE_TOTALI)
 
     wb.save(path)
+    invalida_cache()  # forza rilettura al prossimo caricamento
 
 
 def leggi_foglio(nome):

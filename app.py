@@ -552,6 +552,11 @@ class App(tk.Tk):
         self.emetti_tab = EmettiFatturaTab(nb, on_registra=self._registra_attiva)
         nb.add(self.emetti_tab, text="📤 Emetti fattura")
 
+        # Tab 6 — Movimenti / Pagamenti
+        self.tab_pag = ttk.Frame(nb)
+        nb.add(self.tab_pag, text="💳 Movimenti")
+        self._build_pagamenti()
+
     # ── Approvazione ────────────────────────────────────────────────────────
     def _build_approvazione(self):
         cols = ("fornitore","data","numero","imponibile","iva","tipo","conto","motivo")
@@ -606,6 +611,129 @@ class App(tk.Tk):
     def _build_iva(self):
         self.txt_iva = tk.Text(self.tab_iva, height=20, font=("Courier", 11))
         self.txt_iva.pack(fill="both", expand=True, padx=6, pady=6)
+
+    def _build_pagamenti(self):
+        """Tab Movimenti: incassi, pagamenti fornitori, tasse, altri movimenti."""
+        # ── Form registrazione ────────────────────────────────────────────────
+        form = ttk.LabelFrame(self.tab_pag, text="Nuovo movimento", padding=10)
+        form.pack(fill="x", padx=8, pady=8)
+
+        _TIPI = [
+            ("incasso_cliente",    "Incasso da cliente  (Banca ← Crediti clienti)"),
+            ("pagamento_fornitore","Pagamento fornitore (Banca → Debiti fornitori)"),
+            ("pagamento_tasse",    "Pagamento imposte   (Banca → Erario c/IVA o IRPEF)"),
+            ("prelievo",           "Prelievo/uscita cassa generica"),
+            ("versamento",         "Versamento/entrata cassa generica"),
+        ]
+        self._mov_tipo = tk.StringVar(value=_TIPI[0][0])
+
+        for col, (cod, lbl) in enumerate(_TIPI):
+            ttk.Radiobutton(form, text=lbl, variable=self._mov_tipo,
+                            value=cod).grid(row=0, column=col, sticky="w",
+                                            padx=6, pady=(0, 6))
+
+        ttk.Label(form, text="Data:").grid(row=1, column=0, sticky="e", padx=(0,4))
+        self._mov_data = tk.StringVar(value=datetime.date.today().isoformat())
+        ttk.Entry(form, textvariable=self._mov_data, width=12).grid(row=1, column=1, sticky="w")
+
+        ttk.Label(form, text="Controparte:").grid(row=1, column=2, sticky="e", padx=(12,4))
+        self._mov_cp = tk.StringVar()
+        ttk.Entry(form, textvariable=self._mov_cp, width=28).grid(row=1, column=3, sticky="w")
+
+        ttk.Label(form, text="Importo €:").grid(row=2, column=0, sticky="e", padx=(0,4), pady=4)
+        self._mov_importo = tk.StringVar(value="0.00")
+        ttk.Entry(form, textvariable=self._mov_importo, width=12).grid(row=2, column=1, sticky="w")
+
+        ttk.Label(form, text="Note:").grid(row=2, column=2, sticky="e", padx=(12,4))
+        self._mov_note = tk.StringVar()
+        ttk.Entry(form, textvariable=self._mov_note, width=28).grid(row=2, column=3, sticky="w")
+
+        ttk.Button(form, text="✓ Registra movimento",
+                   command=self._registra_movimento).grid(row=3, column=0, columnspan=4,
+                                                          pady=(8,0), sticky="w")
+
+        # ── Elenco movimenti già registrati ───────────────────────────────────
+        lst = ttk.LabelFrame(self.tab_pag, text="Movimenti registrati", padding=6)
+        lst.pack(fill="both", expand=True, padx=8, pady=(0,8))
+        cols = ("data", "tipo", "controparte", "importo", "note")
+        self.tree_mov = ttk.Treeview(lst, columns=cols, show="headings")
+        for c, w, lbl in zip(cols, (90,180,200,100,200),
+                              ("Data","Tipo","Controparte","Importo €","Note")):
+            self.tree_mov.heading(c, text=lbl)
+            self.tree_mov.column(c, width=w, anchor="w")
+        vsb = ttk.Scrollbar(lst, orient="vertical", command=self.tree_mov.yview)
+        self.tree_mov.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        self.tree_mov.pack(fill="both", expand=True)
+        self._refresh_movimenti()
+
+    def _registra_movimento(self):
+        try:
+            importo = round(float(self._mov_importo.get().replace(",",".")), 2)
+        except ValueError:
+            messagebox.showerror("Errore", "Importo non valido.")
+            return
+        if importo <= 0:
+            messagebox.showerror("Errore", "Importo deve essere > 0.")
+            return
+
+        tipo  = self._mov_tipo.get()
+        data  = self._mov_data.get().strip()
+        cp    = self._mov_cp.get().strip() or tipo
+        note  = self._mov_note.get().strip()
+
+        # Mappa tipo → scrittura contabile
+        _MAPPE = {
+            "incasso_cliente":     [("20","Banca c/c",importo,0),
+                                    ("15",f"Crediti c/ {cp}",0,importo)],
+            "pagamento_fornitore": [("40",f"Debiti c/ {cp}",importo,0),
+                                    ("20","Banca c/c",0,importo)],
+            "pagamento_tasse":     [("48","Erario c/IVA",importo,0),
+                                    ("20","Banca c/c",0,importo)],
+            "prelievo":            [("21","Cassa",0,importo),
+                                    ("20","Banca c/c",importo,0)],
+            "versamento":          [("20","Banca c/c",importo,0),
+                                    ("21","Cassa",0,importo)],
+        }
+        righe_cont = []
+        for conto, descr, dare, avere in _MAPPE.get(tipo, []):
+            righe_cont.append({"conto":conto,"descr":descr,"dare":dare,"avere":avere})
+
+        reg = {
+            "chiave":    f"MOV|{data}|{tipo}|{importo}|{cp}",
+            "data":      data,
+            "fornitore": cp,
+            "numero":    "",
+            "intra_ue":  False,
+            "stato":     "registrata",
+            "tipo":      "movimento",
+            "mov_tipo":  tipo,
+            "note":      note,
+            "righe":     righe_cont,
+        }
+        self.registrazioni.append(reg)
+        giornale.salva(self.registrazioni)
+        self._refresh_giornale()
+        self._refresh_movimenti()
+        self.bilancio_view.aggiorna_silenzioso()
+        self._mov_cp.set("")
+        self._mov_importo.set("0.00")
+        self._mov_note.set("")
+        messagebox.showinfo("Registrato", f"Movimento € {importo:,.2f} registrato.")
+
+    def _refresh_movimenti(self):
+        self.tree_mov.delete(*self.tree_mov.get_children())
+        _LABEL = {
+            "incasso_cliente":"Incasso cliente","pagamento_fornitore":"Pag. fornitore",
+            "pagamento_tasse":"Pag. imposte","prelievo":"Prelievo","versamento":"Versamento",
+        }
+        for r in reversed(self.registrazioni):
+            if r.get("tipo") != "movimento":
+                continue
+            self.tree_mov.insert("", "end", values=(
+                r.get("data",""), _LABEL.get(r.get("mov_tipo",""),"Movimento"),
+                r.get("fornitore",""), f"{sum(x['dare'] for x in r['righe'] if x['conto']=='20'):,.2f}",
+                r.get("note","")))
 
     # ── Importa fatture passive ──────────────────────────────────────────────
     def importa_cartella(self):
