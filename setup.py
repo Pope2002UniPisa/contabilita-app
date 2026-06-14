@@ -1,7 +1,8 @@
 from setuptools import setup
 
 APP = ["app.py"]
-DATA_FILES = [("", ["Template_Bilancio.xlsx", "Contabilita.icns"])]
+DATA_FILES = [("", ["Template_Bilancio.xlsx", "Contabilita.icns"]),
+              ("fonts", ["fonts/Arial.ttf", "fonts/Arial Bold.ttf"])]
 OPTIONS = {
     "argv_emulation": False,
     "iconfile": "Contabilita.icns",
@@ -27,6 +28,8 @@ OPTIONS = {
         "anagrafica",
         "config",
         "notifiche",
+        "pdf_fattura",
+        "fpdf",
         "openpyxl",
     ],
     "resources": ["Template_Bilancio.xlsx"],

@@ -20,6 +20,7 @@ import fattura_attiva as fa
 from anagrafica       import carica_azienda, salva_azienda, carica_clienti, salva_clienti
 import config
 import notifiche
+import pdf_fattura
 
 
 # ══════════════════════════════════════════════════════════════
@@ -357,6 +358,7 @@ class EmettiFatturaTab(ttk.Frame):
 
         # Stato interno per notifiche
         self._ultimo_xml  = None
+        self._ultimo_pdf  = None
         self._ultima_fatt = None
         self._ultima_az   = None
 
@@ -453,14 +455,17 @@ class EmettiFatturaTab(ttk.Frame):
                 messagebox.showwarning("Attenzione",
                     "Configura prima i dati azienda (bottone ⚙ Impostazioni).")
                 return
-            dest = filedialog.askdirectory(title="Cartella dove salvare l'XML")
+            dest = filedialog.askdirectory(title="Cartella dove salvare XML e PDF")
             if not dest:
                 return
-            path = fa.salva_fattura_xml(fatt, azienda, dest)
-            self._ultimo_xml   = path
+            path_xml = fa.salva_fattura_xml(fatt, azienda, dest)
+            path_pdf = pdf_fattura.salva_pdf(fatt, azienda, dest)
+            self._ultimo_xml   = path_xml
+            self._ultimo_pdf   = path_pdf
             self._ultima_fatt  = fatt
             self._ultima_az    = azienda
-            messagebox.showinfo("Salvato", f"Fattura XML salvata in:\n{path}")
+            messagebox.showinfo("Salvato",
+                f"Fattura salvata in:\n• XML: {os.path.basename(path_xml)}\n• PDF: {os.path.basename(path_pdf)}")
             self._abilita_notifiche(True)
         except ValueError as e:
             messagebox.showerror("Errore", str(e))
@@ -485,7 +490,9 @@ class EmettiFatturaTab(ttk.Frame):
         try:
             obj, body = notifiche.testo_fattura_email(self._ultima_fatt, self._ultima_az)
             dest = self._ultima_fatt["cliente"].get("email", "")
-            notifiche.invia_email(dest, obj, body, allegato=self._ultimo_xml)
+            # Invia PDF come allegato principale + XML in secondo allegato
+            notifiche.invia_email_multi(dest, obj, body,
+                                        allegati=[self._ultimo_pdf, self._ultimo_xml])
         except Exception as e:
             messagebox.showerror("Errore email", str(e))
 

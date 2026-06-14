@@ -13,8 +13,8 @@ import webbrowser
 
 # ── EMAIL ────────────────────────────────────────────────────────────────────
 
-def _email_mac(dest, oggetto, corpo, allegato=None):
-    corpo_esc  = corpo.replace('"', '\\"').replace('\n', '\\n')
+def _email_mac(dest, oggetto, corpo, allegati=None):
+    corpo_esc   = corpo.replace('"', '\\"').replace('\n', '\\n')
     oggetto_esc = oggetto.replace('"', '\\"')
     lines = [
         'tell application "Mail"',
@@ -25,8 +25,9 @@ def _email_mac(dest, oggetto, corpo, allegato=None):
         f'    make new to recipient at end of to recipients of msg '
         f'with properties {{address: "{dest}"}}',
     ]
-    if allegato and os.path.exists(allegato):
-        lines.append(f'    add attachment "{allegato}" to msg')
+    for a in (allegati or []):
+        if a and os.path.exists(a):
+            lines.append(f'    add attachment "{a}" to msg')
     lines += ['    set visible of msg to true', 'end tell']
     subprocess.run(['osascript', '-e', '\n'.join(lines)])
 
@@ -54,17 +55,24 @@ def _email_fallback(dest, oggetto, corpo, **_):
 
 
 def invia_email(dest: str, oggetto: str, corpo: str, allegato: str = None):
-    """
-    Apre il client email con messaggio precompilato e allegato (se specificato).
-    dest      — indirizzo email destinatario
-    allegato  — percorso file da allegare (opzionale)
-    """
+    invia_email_multi(dest, oggetto, corpo, allegati=[allegato] if allegato else [])
+
+
+def invia_email_multi(dest: str, oggetto: str, corpo: str, allegati: list = None):
+    """Apre Mail.app/Outlook con più allegati (PDF + XML)."""
     if not dest:
         raise ValueError("Indirizzo email del cliente non presente in anagrafica.")
+    allegati = [a for a in (allegati or []) if a]
     if sys.platform == "darwin":
-        _email_mac(dest, oggetto, corpo, allegato)
+        _email_mac(dest, oggetto, corpo, allegati)
     elif sys.platform == "win32":
-        _email_win(dest, oggetto, corpo, allegato)
+        # Invia il primo allegato disponibile (Outlook non supporta multi-attach via AppleScript)
+        for a in allegati:
+            if os.path.exists(a):
+                _email_win(dest, oggetto, corpo, a)
+                break
+        else:
+            _email_fallback(dest, oggetto, corpo)
     else:
         _email_fallback(dest, oggetto, corpo)
 
