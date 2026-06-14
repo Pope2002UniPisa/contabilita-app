@@ -8,8 +8,11 @@ Le regole per P.IVA sono salvate su file JSON e crescono man mano che approvi.
 """
 import json
 import os
+import config
 
-REGOLE_FILE = os.path.join(os.path.dirname(__file__), "dati", "regole.json")
+
+def _regole_file():
+    return os.path.join(config.get_data_dir(), "regole.json")
 
 # Regole iniziali per parole chiave (categorie indicate da Leonardo)
 REGOLE_KEYWORD = [
@@ -27,18 +30,19 @@ REGOLE_KEYWORD = [
 
 
 def carica_regole_piva():
-    if os.path.exists(REGOLE_FILE):
-        with open(REGOLE_FILE, encoding="utf-8") as f:
+    f_path = _regole_file()
+    if os.path.exists(f_path):
+        with open(f_path, encoding="utf-8") as f:
             return json.load(f)
     return {}
 
 
 def salva_regola_piva(piva, conto):
-    """Memorizza l'associazione fornitore->conto (apprendimento)."""
     regole = carica_regole_piva()
     regole[piva] = conto
-    os.makedirs(os.path.dirname(REGOLE_FILE), exist_ok=True)
-    with open(REGOLE_FILE, "w", encoding="utf-8") as f:
+    f_path = _regole_file()
+    os.makedirs(os.path.dirname(f_path), exist_ok=True)
+    with open(f_path, "w", encoding="utf-8") as f:
         json.dump(regole, f, ensure_ascii=False, indent=2)
 
 

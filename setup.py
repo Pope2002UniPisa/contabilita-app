@@ -27,7 +27,6 @@ OPTIONS = {
         "anagrafica",
         "config",
         "notifiche",
-        "tksheet",
         "openpyxl",
     ],
     "resources": ["Template_Bilancio.xlsx"],

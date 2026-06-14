@@ -109,6 +109,115 @@ class ImpostazioniDialog(tk.Toplevel):
 # ══════════════════════════════════════════════════════════════
 #  DIALOG NUOVO CLIENTE
 # ══════════════════════════════════════════════════════════════
+class GestisciClientiDialog(tk.Toplevel):
+    """Lista clienti con modifica ed eliminazione."""
+    def __init__(self, parent, on_change=None):
+        super().__init__(parent)
+        self.title("Gestisci clienti")
+        self.geometry("680x420")
+        self._on_change = on_change
+        self._build()
+
+    def _build(self):
+        frm = ttk.Frame(self, padding=8)
+        frm.pack(fill="both", expand=True)
+
+        cols = ("denominazione", "piva", "email", "telefono")
+        self._tree = ttk.Treeview(frm, columns=cols, show="headings", height=14)
+        for c, w, lbl in zip(cols, (220,120,180,120),
+                              ("Ragione sociale","P.IVA","Email","Telefono")):
+            self._tree.heading(c, text=lbl)
+            self._tree.column(c, width=w, anchor="w")
+        vsb = ttk.Scrollbar(frm, orient="vertical", command=self._tree.yview)
+        self._tree.configure(yscrollcommand=vsb.set)
+        vsb.pack(side="right", fill="y")
+        self._tree.pack(fill="both", expand=True)
+        self._ricarica()
+
+        btn = ttk.Frame(self, padding=(8, 0, 8, 10))
+        btn.pack(fill="x")
+        ttk.Button(btn, text="✏️ Modifica selezionato",
+                   command=self._modifica).pack(side="left")
+        ttk.Button(btn, text="🗑 Elimina selezionato",
+                   command=self._elimina).pack(side="left", padx=8)
+        ttk.Button(btn, text="Chiudi",
+                   command=self.destroy).pack(side="right")
+
+    def _ricarica(self):
+        self._tree.delete(*self._tree.get_children())
+        for i, c in enumerate(carica_clienti()):
+            self._tree.insert("", "end", iid=str(i),
+                values=(c.get("denominazione",""), c.get("piva",""),
+                        c.get("email",""), c.get("telefono","")))
+
+    def _modifica(self):
+        sel = self._tree.selection()
+        if not sel:
+            return
+        idx = int(sel[0])
+        clienti = carica_clienti()
+        ModificaClienteDialog(self, clienti[idx], idx, on_save=self._dopo_modifica)
+
+    def _dopo_modifica(self):
+        self._ricarica()
+        if self._on_change:
+            self._on_change()
+
+    def _elimina(self):
+        sel = self._tree.selection()
+        if not sel:
+            return
+        idx = int(sel[0])
+        clienti = carica_clienti()
+        nome = clienti[idx].get("denominazione", "?")
+        if messagebox.askyesno("Conferma", f"Eliminare '{nome}'?", parent=self):
+            clienti.pop(idx)
+            salva_clienti(clienti)
+            self._ricarica()
+            if self._on_change:
+                self._on_change()
+
+
+class ModificaClienteDialog(tk.Toplevel):
+    _CAMPI = [
+        ("denominazione","Ragione sociale"), ("piva","Partita IVA"),
+        ("codice_fiscale","Codice fiscale"), ("paese","Paese (IT)"),
+        ("via","Indirizzo"), ("cap","CAP"), ("comune","Comune"),
+        ("provincia","Provincia"), ("nazione","Nazione (IT)"),
+        ("codice_sdi","Codice SDI"), ("pec","PEC"),
+        ("email","Email"), ("telefono","Telefono/WhatsApp"),
+    ]
+
+    def __init__(self, parent, cliente: dict, idx: int, on_save=None):
+        super().__init__(parent)
+        self.title(f"Modifica — {cliente.get('denominazione','')}")
+        self.resizable(False, False)
+        self._idx = idx
+        self._on_save = on_save
+        self._vars = {}
+
+        frm = ttk.Frame(self, padding=16)
+        frm.pack(fill="both", expand=True)
+        for row, (key, label) in enumerate(self._CAMPI):
+            ttk.Label(frm, text=label+":").grid(row=row,column=0,sticky="e",pady=2,padx=(0,8))
+            var = tk.StringVar(value=cliente.get(key,""))
+            ttk.Entry(frm, textvariable=var, width=36).grid(row=row,column=1,sticky="w")
+            self._vars[key] = var
+
+        btn = ttk.Frame(self, padding=(16,0,16,12))
+        btn.pack(fill="x")
+        ttk.Button(btn, text="Salva", command=self._salva).pack(side="right")
+        ttk.Button(btn, text="Annulla", command=self.destroy).pack(side="right", padx=6)
+
+    def _salva(self):
+        clienti = carica_clienti()
+        clienti[self._idx] = {k: v.get().strip() for k, v in self._vars.items()}
+        salva_clienti(clienti)
+        if self._on_save:
+            self._on_save()
+        self.destroy()
+
+
 class NuovoClienteDialog(tk.Toplevel):
     _CAMPI = [
         ("denominazione",  "Ragione sociale *"),
@@ -184,6 +293,8 @@ class EmettiFatturaTab(ttk.Frame):
         self._combo_clienti.grid(row=0, column=1, sticky="w")
         ttk.Button(top, text="+ Nuovo", width=8,
                    command=self._nuovo_cliente).grid(row=0, column=2, padx=6)
+        ttk.Button(top, text="✏️ Gestisci", width=9,
+                   command=self._gestisci_clienti).grid(row=0, column=3, padx=2)
         self._aggiorna_clienti()
 
         # Riga 2: data, numero, tipo
@@ -259,6 +370,9 @@ class EmettiFatturaTab(ttk.Frame):
 
     def _nuovo_cliente(self):
         NuovoClienteDialog(self, on_save=self._aggiorna_clienti)
+
+    def _gestisci_clienti(self):
+        GestisciClientiDialog(self, on_change=lambda: self._aggiorna_clienti())
 
     def _add_riga(self):
         row_idx = len(self._righe_vars) + 1
@@ -472,10 +586,20 @@ class App(tk.Tk):
             self.tree_g.column(c, width=w, anchor="w")
         self.tree_g.tag_configure("attiva", foreground="#0066aa")
         self.tree_g.pack(fill="both", expand=True, padx=6, pady=6)
+
+        # Menu tasto destro
+        self._menu_g = tk.Menu(self.tree_g, tearoff=0)
+        self._menu_g.add_command(label="🗑  Elimina questa registrazione",
+                                  command=self._elimina_registrazione)
+        self.tree_g.bind("<Button-2>", self._show_menu_g)
+        self.tree_g.bind("<Button-3>", self._show_menu_g)
+
         bar = ttk.Frame(self.tab_giorn, padding=6)
         bar.pack(fill="x")
         self.lbl_tot = ttk.Label(bar, text="")
         self.lbl_tot.pack(side="left")
+        ttk.Button(bar, text="🗑 Elimina selezionata",
+                   command=self._elimina_registrazione).pack(side="left", padx=12)
         ttk.Button(bar, text="Esporta giornale (CSV)",
                    command=self.esporta_csv).pack(side="right")
 
@@ -650,6 +774,44 @@ class App(tk.Tk):
         t += "\n(Include reverse charge intra-UE: registrato a debito e credito, saldo zero.)"
         self.txt_iva.delete("1.0", "end")
         self.txt_iva.insert("1.0", t)
+
+    def _show_menu_g(self, event):
+        row = self.tree_g.identify_row(event.y)
+        if row:
+            self.tree_g.selection_set(row)
+            self._menu_g.post(event.x_root, event.y_root)
+
+    def _elimina_registrazione(self):
+        sel = self.tree_g.selection()
+        if not sel:
+            messagebox.showinfo("Info", "Seleziona una riga del giornale.")
+            return
+        # Trova la chiave della registrazione dalla riga selezionata
+        item = self.tree_g.item(sel[0])
+        data_val = item["values"][0]   # colonna Data (non vuota solo prima riga del gruppo)
+        fornitore_val = item["values"][1]
+        numero_val = item["values"][2]
+        if not data_val:
+            messagebox.showinfo("Info",
+                "Clicca sulla prima riga di una registrazione (quella con la data).")
+            return
+        # Trova la registrazione corrispondente
+        match = next((r for r in self.registrazioni
+                      if r.get("data") == str(data_val)
+                      and r.get("fornitore") == str(fornitore_val)
+                      and str(r.get("numero","")) == str(numero_val)), None)
+        if not match:
+            messagebox.showerror("Errore", "Registrazione non trovata.")
+            return
+        tipo = match.get("tipo", "passiva")
+        msg = (f"Eliminare la registrazione:\n"
+               f"  {tipo.upper()} — {fornitore_val} n° {numero_val} del {data_val}?\n\n"
+               f"L'operazione è irreversibile.")
+        if messagebox.askyesno("Conferma eliminazione", msg):
+            self.registrazioni.remove(match)
+            giornale.salva(self.registrazioni)
+            self._refresh_giornale()
+            self.bilancio_view.aggiorna_silenzioso()
 
     def esporta_csv(self):
         path = filedialog.asksaveasfilename(defaultextension=".csv",
