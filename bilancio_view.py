@@ -73,8 +73,20 @@ class SheetView(tk.Frame):
             ttk.Label(self, text="Foglio non disponibile", padding=20).pack()
             return
 
+        # Stile chiaro esplicito (override dark mode macOS)
+        style = ttk.Style()
+        style.configure("Bilancio.Treeview",
+                        background="white", foreground="black",
+                        fieldbackground="white", rowheight=22,
+                        font=("Helvetica", 9))
+        style.configure("Bilancio.Treeview.Heading",
+                        background="#555555", foreground="white",
+                        font=("Helvetica", 9, "bold"))
+        style.map("Bilancio.Treeview", background=[("selected", "#B8D4F0")])
+
         cols = ("voce", "2022", "2023", "2024", "2025", "2026", "2027")
-        tree = ttk.Treeview(self, columns=cols, show="headings", selectmode="none")
+        tree = ttk.Treeview(self, columns=cols, show="headings",
+                            selectmode="none", style="Bilancio.Treeview")
 
         # Intestazioni colonne
         tree.heading("voce", text="Voce di bilancio", anchor="w")
@@ -85,16 +97,17 @@ class SheetView(tk.Frame):
             tree.column(yr, width=self._YEAR_W, minwidth=60,
                         anchor="e", stretch=False)
 
-        # Tag colori + font bold per sezioni
+        # Tag colori — foreground="black" esplicito per compatibilità dark mode
         f_normal = ("Helvetica", 9)
         f_bold   = ("Helvetica", 9, "bold")
-        tree.tag_configure("yellow",     background="#FFF0A0", font=f_bold)
-        tree.tag_configure("gray_dark",  background="#D9D9D9", font=f_bold)
-        tree.tag_configure("gray_light", background="#EEEEEE", font=f_normal)
-        tree.tag_configure("green",      background="#A9D08E", font=f_bold)
-        tree.tag_configure("green2",     background="#C8E6A0", font=f_normal)
-        tree.tag_configure("blue_light", background="#BDD7EE", font=f_normal)
-        tree.tag_configure("",          font=f_normal)
+        fg = "black"
+        tree.tag_configure("yellow",     background="#FFF0A0", foreground=fg, font=f_bold)
+        tree.tag_configure("gray_dark",  background="#D0D0D0", foreground=fg, font=f_bold)
+        tree.tag_configure("gray_light", background="#F0F0F0", foreground=fg, font=f_normal)
+        tree.tag_configure("green",      background="#A9D08E", foreground=fg, font=f_bold)
+        tree.tag_configure("green2",     background="#C8E6A0", foreground=fg, font=f_normal)
+        tree.tag_configure("blue_light", background="#BDD7EE", foreground=fg, font=f_normal)
+        tree.tag_configure("",           background="white",   foreground=fg, font=f_normal)
 
         for row in rows_raw:
             # Salta righe intestazione anni (row 2 di ogni foglio)
