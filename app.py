@@ -18,13 +18,15 @@ import bilancio_excel as bx
 from bilancio_view    import BilancioView
 import fattura_attiva as fa
 from anagrafica       import carica_azienda, salva_azienda, carica_clienti, salva_clienti
+import config
+import notifiche
 
 
 # ══════════════════════════════════════════════════════════════
 #  DIALOG IMPOSTAZIONI AZIENDA
 # ══════════════════════════════════════════════════════════════
 class ImpostazioniDialog(tk.Toplevel):
-    _CAMPI = [
+    _CAMPI_AZIENDA = [
         ("denominazione", "Ragione sociale"),
         ("piva",          "Partita IVA"),
         ("codice_fiscale","Codice fiscale"),
@@ -39,28 +41,66 @@ class ImpostazioniDialog(tk.Toplevel):
 
     def __init__(self, parent, on_save=None):
         super().__init__(parent)
-        self.title("Impostazioni Azienda")
+        self.title("Impostazioni")
         self.resizable(False, False)
         self._on_save = on_save
         self._vars = {}
         azienda = carica_azienda()
 
-        frm = ttk.Frame(self, padding=16)
-        frm.pack(fill="both", expand=True)
-        for row, (key, label) in enumerate(self._CAMPI):
-            ttk.Label(frm, text=label + ":").grid(row=row, column=0, sticky="e", pady=2, padx=(0, 8))
+        nb = ttk.Notebook(self)
+        nb.pack(fill="both", expand=True, padx=8, pady=8)
+
+        # ── Tab Azienda ──────────────────────────────────────────────────
+        frm = ttk.Frame(nb, padding=16)
+        nb.add(frm, text="Dati Azienda")
+        for row, (key, label) in enumerate(self._CAMPI_AZIENDA):
+            ttk.Label(frm, text=label + ":").grid(row=row, column=0, sticky="e", pady=2, padx=(0,8))
             var = tk.StringVar(value=azienda.get(key, ""))
             ttk.Entry(frm, textvariable=var, width=36).grid(row=row, column=1, sticky="w")
             self._vars[key] = var
+
+        # ── Tab Cartella Dati (sync) ──────────────────────────────────────
+        sync_frm = ttk.Frame(nb, padding=16)
+        nb.add(sync_frm, text="Cartella Dati / Sync")
+
+        ttk.Label(sync_frm,
+            text="Cartella dove vengono salvati giornale, bilancio e anagrafica.\n"
+                 "Per sincronizzare Mac ↔ Windows in tempo reale:\n"
+                 "scegli una cartella OneDrive o Dropbox condivisa.",
+            justify="left", foreground="#555555").pack(anchor="w", pady=(0, 12))
+
+        path_frm = ttk.Frame(sync_frm)
+        path_frm.pack(fill="x")
+        self._data_dir_var = tk.StringVar(value=config.get_data_dir())
+        ttk.Entry(path_frm, textvariable=self._data_dir_var,
+                  width=44, state="readonly").pack(side="left")
+        ttk.Button(path_frm, text="Cambia…",
+                   command=self._cambia_cartella).pack(side="left", padx=6)
+
+        ttk.Label(sync_frm,
+            text="\nCartella attuale:  " + config.get_data_dir(),
+            foreground="#888888").pack(anchor="w", pady=(8, 0))
+
+        ttk.Label(sync_frm,
+            text="⚠️  Dopo aver cambiato cartella riavvia l'app.",
+            foreground="#cc6600").pack(anchor="w", pady=(4, 0))
 
         btn = ttk.Frame(self, padding=(16, 0, 16, 12))
         btn.pack(fill="x")
         ttk.Button(btn, text="Salva", command=self._salva).pack(side="right")
         ttk.Button(btn, text="Annulla", command=self.destroy).pack(side="right", padx=6)
 
+    def _cambia_cartella(self):
+        d = filedialog.askdirectory(title="Scegli cartella dati (es. OneDrive/ContabilitaApp)")
+        if d:
+            self._data_dir_var.set(d)
+
     def _salva(self):
         dati = {k: v.get().strip() for k, v in self._vars.items()}
         salva_azienda(dati)
+        new_dir = self._data_dir_var.get().strip()
+        if new_dir and new_dir != config.get_data_dir():
+            config.set_data_dir(new_dir)
         if self._on_save:
             self._on_save()
         self.destroy()
@@ -82,6 +122,8 @@ class NuovoClienteDialog(tk.Toplevel):
         ("nazione",        "Nazione (IT)"),
         ("codice_sdi",     "Codice SDI"),
         ("pec",            "PEC"),
+        ("email",          "Email (per invio fatture)"),
+        ("telefono",       "Telefono/WhatsApp"),
     ]
 
     def __init__(self, parent, on_save=None):
@@ -152,13 +194,13 @@ class EmettiFatturaTab(ttk.Frame):
         meta = ttk.Frame(top)
         meta.grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 0))
         ttk.Label(meta, text="Tipo doc:").pack(side="left")
-        self._tipo_var = tk.StringVar(value="TD01")
-        ttk.Combobox(meta, textvariable=self._tipo_var, width=8, state="readonly",
-                     values=["TD01","TD06","TD04","TD05"]).pack(side="left", padx=(4, 16))
+        self._tipo_var = tk.StringVar(value=config.TIPI_DOCUMENTO[0][1])
+        ttk.Combobox(meta, textvariable=self._tipo_var, width=28, state="readonly",
+                     values=[v for _, v in config.TIPI_DOCUMENTO]).pack(side="left", padx=(4, 16))
         ttk.Label(meta, text="Pagamento:").pack(side="left")
-        self._pag_var = tk.StringVar(value="MP05")
-        ttk.Combobox(meta, textvariable=self._pag_var, width=8, state="readonly",
-                     values=["MP05","MP01","MP02","MP08"]).pack(side="left", padx=4)
+        self._pag_var = tk.StringVar(value=config.MODALITA_PAGAMENTO[0][1])
+        ttk.Combobox(meta, textvariable=self._pag_var, width=28, state="readonly",
+                     values=[v for _, v in config.MODALITA_PAGAMENTO]).pack(side="left", padx=4)
 
         # ── Righe fattura ─────────────────────────────────────────────────
         rig_frm = ttk.LabelFrame(self, text="Righe", padding=8)
@@ -191,6 +233,21 @@ class EmettiFatturaTab(ttk.Frame):
                    command=self._registra).pack(side="left", padx=8)
         ttk.Button(btn_frm, text="🔄 Ricalcola totali",
                    command=self._ricalcola).pack(side="left")
+
+        # Notifiche — abilitate solo dopo aver salvato l'XML
+        sep = ttk.Separator(btn_frm, orient="vertical")
+        sep.pack(side="left", fill="y", padx=12)
+        self._btn_email = ttk.Button(btn_frm, text="📧 Invia per Email",
+                                     command=self._invia_email, state="disabled")
+        self._btn_email.pack(side="left")
+        self._btn_wa = ttk.Button(btn_frm, text="📱 Invia su WhatsApp",
+                                  command=self._invia_wa, state="disabled")
+        self._btn_wa.pack(side="left", padx=6)
+
+        # Stato interno per notifiche
+        self._ultimo_xml  = None
+        self._ultima_fatt = None
+        self._ultima_az   = None
 
     def _aggiorna_clienti(self, nuovo=None):
         clienti = carica_clienti()
@@ -267,8 +324,8 @@ class EmettiFatturaTab(ttk.Frame):
         return {
             "numero":            numero,
             "data":              self._data_var.get().strip() or datetime.date.today().isoformat(),
-            "tipo_doc":          self._tipo_var.get(),
-            "modalita_pagamento":self._pag_var.get(),
+            "tipo_doc":          self._tipo_var.get().split(" ")[0],      # "TD01 — Fattura" → "TD01"
+            "modalita_pagamento":self._pag_var.get().split(" ")[0],       # "MP05 — ..." → "MP05"
             "cliente":           cliente,
             "righe":             righe,
         }
@@ -286,7 +343,11 @@ class EmettiFatturaTab(ttk.Frame):
             if not dest:
                 return
             path = fa.salva_fattura_xml(fatt, azienda, dest)
+            self._ultimo_xml   = path
+            self._ultima_fatt  = fatt
+            self._ultima_az    = azienda
             messagebox.showinfo("Salvato", f"Fattura XML salvata in:\n{path}")
+            self._abilita_notifiche(True)
         except ValueError as e:
             messagebox.showerror("Errore", str(e))
 
@@ -300,6 +361,27 @@ class EmettiFatturaTab(ttk.Frame):
                 self._on_registra(reg)
         except ValueError as e:
             messagebox.showerror("Errore", str(e))
+
+    def _abilita_notifiche(self, on: bool):
+        state = "normal" if on else "disabled"
+        self._btn_email.config(state=state)
+        self._btn_wa.config(state=state)
+
+    def _invia_email(self):
+        try:
+            obj, body = notifiche.testo_fattura_email(self._ultima_fatt, self._ultima_az)
+            dest = self._ultima_fatt["cliente"].get("email", "")
+            notifiche.invia_email(dest, obj, body, allegato=self._ultimo_xml)
+        except Exception as e:
+            messagebox.showerror("Errore email", str(e))
+
+    def _invia_wa(self):
+        try:
+            msg = notifiche.testo_fattura_whatsapp(self._ultima_fatt, self._ultima_az)
+            tel = self._ultima_fatt["cliente"].get("telefono", "")
+            notifiche.invia_whatsapp(tel, msg)
+        except Exception as e:
+            messagebox.showerror("Errore WhatsApp", str(e))
 
 
 # ══════════════════════════════════════════════════════════════
@@ -437,6 +519,7 @@ class App(tk.Tk):
         giornale.salva(self.registrazioni)
         self._refresh_appr()
         self._refresh_giornale()
+        self.bilancio_view.aggiorna_silenzioso()
         self.lbl_stato.config(
             text=f"Importate: {n_auto} auto, {n_coda} da approvare, "
                  f"{n_skip} già presenti, {n_err} errori.")
@@ -506,6 +589,7 @@ class App(tk.Tk):
         giornale.salva(self.registrazioni)
         self._refresh_appr()
         self._refresh_giornale()
+        self.bilancio_view.aggiorna_silenzioso()
 
     def approva_tutte(self):
         restanti = []
@@ -521,6 +605,7 @@ class App(tk.Tk):
         giornale.salva(self.registrazioni)
         self._refresh_appr()
         self._refresh_giornale()
+        self.bilancio_view.aggiorna_silenzioso()
 
     # ── Giornale ─────────────────────────────────────────────────────────────
     def _refresh_giornale(self):
