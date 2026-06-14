@@ -77,12 +77,13 @@ class SheetView(tk.Frame):
         style = ttk.Style()
         style.configure("Bilancio.Treeview",
                         background="white", foreground="black",
-                        fieldbackground="white", rowheight=22,
-                        font=("Helvetica", 9))
+                        fieldbackground="white", rowheight=26)
         style.configure("Bilancio.Treeview.Heading",
-                        background="#555555", foreground="white",
-                        font=("Helvetica", 9, "bold"))
-        style.map("Bilancio.Treeview", background=[("selected", "#B8D4F0")])
+                        background="#444444", foreground="white",
+                        font=("Helvetica", 12, "bold"))
+        style.map("Bilancio.Treeview",
+                  background=[("selected", "#B8D4F0")],
+                  foreground=[("selected", "black")])
 
         cols = ("voce", "2022", "2023", "2024", "2025", "2026", "2027")
         tree = ttk.Treeview(self, columns=cols, show="headings",
@@ -97,9 +98,9 @@ class SheetView(tk.Frame):
             tree.column(yr, width=self._YEAR_W, minwidth=60,
                         anchor="e", stretch=False)
 
-        # Tag colori — foreground="black" esplicito per compatibilità dark mode
-        f_normal = ("Helvetica", 9)
-        f_bold   = ("Helvetica", 9, "bold")
+        # Tag colori — foreground="black" esplicito, font 11pt leggibile
+        f_normal = ("Helvetica", 11)
+        f_bold   = ("Helvetica", 11, "bold")
         fg = "black"
         tree.tag_configure("yellow",     background="#FFF0A0", foreground=fg, font=f_bold)
         tree.tag_configure("gray_dark",  background="#D0D0D0", foreground=fg, font=f_bold)
@@ -107,7 +108,8 @@ class SheetView(tk.Frame):
         tree.tag_configure("green",      background="#A9D08E", foreground=fg, font=f_bold)
         tree.tag_configure("green2",     background="#C8E6A0", foreground=fg, font=f_normal)
         tree.tag_configure("blue_light", background="#BDD7EE", foreground=fg, font=f_normal)
-        tree.tag_configure("",           background="white",   foreground=fg, font=f_normal)
+        # "normal" invece di "" — il tag vuoto non funziona in dark mode macOS
+        tree.tag_configure("normal",     background="white",   foreground=fg, font=f_normal)
 
         for row in rows_raw:
             # Salta righe intestazione anni (row 2 di ogni foglio)
@@ -145,7 +147,7 @@ class SheetView(tk.Frame):
                 if t:
                     break
 
-            tree.insert("", "end", values=vals, tags=(t,) if t else ("",))
+            tree.insert("", "end", values=vals, tags=(t if t else "normal",))
 
         vsb = ttk.Scrollbar(self, orient="vertical",   command=tree.yview)
         hsb = ttk.Scrollbar(self, orient="horizontal", command=tree.xview)
