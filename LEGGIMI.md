@@ -1,5 +1,12 @@
 # Contabilità Automatica — Fase 1
 
+> ⚠️ **MIGRATO NEL PORTALE (Measure Master).** Da luglio 2026 questa logica è
+> stata portata dentro `frame-planner-tool` (Supabase + TypeScript): parser
+> FatturaPA, partita doppia, reverse charge intra-UE, prospetto IVA, scadenzario,
+> cespiti, fatture attive e bilancio vivono ora nella sezione **Contabilità** del
+> portale, per-rivenditore. Questa app desktop resta come **specifica di
+> riferimento** delle regole (già collaudate); la fonte di verità è il portale.
+
 App desktop per leggere le fatture elettroniche (FatturaPA), proporne la
 contabilizzazione in partita doppia e tenere il libro giornale interno.
 
